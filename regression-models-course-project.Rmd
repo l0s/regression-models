@@ -1,0 +1,175 @@
+---
+title: "Regression Models Course Project"
+author: "Carlos Macasaet"
+date: "24 August 2014"
+output: pdf_document
+---
+
+## Executive Summary
+
+Although manual transmission vehicles have a higher median fuel efficiency as
+measured in miles-per-gallon (MPG), we cannot conclude that a manual
+transmission is better for MPG. There are far better predictors of MPG. What we
+can say is that in general, increasing the number of gears improves MPG, but for
+manual transmission vehicles, that improvement is smaller.
+
+## Is an automatic or manual transmission better for MPG?
+
+Some exploratory data analysis shows that manual transmission vehicles have a
+higher fuel efficiency in aggregate than automatic transmission vehicles
+(figure 1). In addition, the initial analysis also suggests that fuel efficiency
+has a linear relationship with the number of cylinders, displaplacement, weight,
+and to a lesser extent, rear axle ratio (figures 1 and 2). However, a better
+analysis is provided by a linear regression model.
+
+```{r, echo=FALSE}
+transmissionType <- as.factor( mtcars$am )
+cylinders <- as.factor( mtcars$cyl )
+engineConfiguration <- as.factor( mtcars$vs )
+```
+
+#### Analysis of Variance
+I start by constructing thirteen increasingly sophisticated linear models
+with the simplest one predicting MPG as a function of transmission type alone.
+
+```{r, echo=FALSE}
+anova( lm( mtcars$mpg ~ transmissionType ),
+       lm( mtcars$mpg ~ transmissionType + cylinders ),
+       lm( mtcars$mpg ~ transmissionType + cylinders + mtcars$disp ),
+       lm( mtcars$mpg ~ transmissionType + cylinders + mtcars$disp +
+             engineConfiguration ),
+       lm( mtcars$mpg ~ transmissionType + cylinders + mtcars$disp +
+             engineConfiguration + mtcars$carb ),
+       lm( mtcars$mpg ~ transmissionType + cylinders + mtcars$disp +
+             engineConfiguration + mtcars$carb + mtcars$gear ),
+       lm( mtcars$mpg ~ transmissionType + cylinders + mtcars$disp +
+             engineConfiguration + mtcars$carb + mtcars$gear + mtcars$wt ),
+       lm( mtcars$mpg ~ transmissionType + cylinders + mtcars$disp +
+             engineConfiguration + mtcars$carb + mtcars$gear + mtcars$wt +
+             mtcars$drat ),
+       lm( mtcars$mpg ~ transmissionType + cylinders * mtcars$disp +
+             engineConfiguration + mtcars$carb + mtcars$gear + mtcars$wt +
+             mtcars$drat ),
+       lm( mtcars$mpg ~ transmissionType * mtcars$gear + cylinders +
+             mtcars$disp + cylinders:mtcars$disp +
+             cylinders:engineConfiguration + engineConfiguration + mtcars$carb +
+             mtcars$wt * mtcars$drat ),
+       lm( mtcars$mpg ~ transmissionType * mtcars$gear + cylinders +
+             mtcars$disp + cylinders:mtcars$disp + engineConfiguration +
+             cylinders:mtcars$wt + engineConfiguration + mtcars$carb +
+             mtcars$wt * mtcars$drat ),
+       lm( mtcars$mpg ~ transmissionType * mtcars$gear + cylinders +
+             mtcars$disp + cylinders:mtcars$disp + engineConfiguration +
+             cylinders:mtcars$wt + engineConfiguration + mtcars$carb +
+             mtcars$wt * mtcars$drat + mtcars$hp ),
+       lm( mtcars$mpg ~ transmissionType * mtcars$gear + cylinders +
+             mtcars$disp + cylinders:mtcars$disp + engineConfiguration +
+             cylinders:mtcars$wt + engineConfiguration + mtcars$carb +
+             mtcars$wt * mtcars$drat +
+             mtcars$hp + mtcars$qsec ) )
+```
+
+In the last two models (12 and 13) I introduce horsepower and quarter mile time
+as variables. This gave me pause because like fuel efficiency they are outcomes
+of vehicle design and therefore do not seem appropriate as predictors of MPG.
+However, in case there were other aspects of vehicle design that significantly
+contributed to these features but were not represented in the data, I decided to
+test their effectiveness.
+
+As it turned out adding horsepower and quarter mile time did not improve the
+model significantly, so I chose to ignore them. In addition, adding an
+interaction between number of cylinders and weight made the model worse. The
+winner based on the analysis of variance is the tenth model which includes all
+of the vehicle attributes plus interactions between transmission and number of
+gears, number of cylinders and displacement, number of cylinders and engine
+configuration, and weight and rear axle ratio.
+
+### So is an automatic or manual transmission better for MPG?
+
+```{r, echo=FALSE}
+fit <-
+  lm( mtcars$mpg ~ transmissionType * mtcars$gear + cylinders +
+       mtcars$disp + cylinders:mtcars$disp +
+       cylinders:engineConfiguration + engineConfiguration + mtcars$carb +
+       mtcars$wt * mtcars$drat )
+summary <- summary( fit )
+summary$coefficients
+```
+
+According to the confidence levels of the various regressors, we cannot really
+say. Transmission type has the 11th highest confidence level with less than 80%
+confidence. This tells us that transmission type may have some impact on MPG,
+but we do not have as high certainty about as we do others. The following table
+lists the top ten predictors in their order of confidence level:
+
+```{r, echo=FALSE}
+coefficients <- summary$coefficients
+summaryDf <-
+  data.frame( coefficients[ 2:dim( coefficients )[ 1 ], ] )
+summaryDf[ order( summaryDf[ , 4 ] ), 3:4 ][ 1:10, ]
+```
+
+Selecting only the features with 95% confidence or higher yields:
+
+```{r, echo=FALSE}
+fit <-
+  lm( mtcars$mpg ~ mtcars$gear + cylinders + mtcars$disp +
+        transmissionType:mtcars$gear + cylinders:mtcars$disp +
+        cylinders:engineConfiguration )
+summary( fit )$coefficients
+```
+
+### Diagnostics
+
+Diagnostic analyses of the residuals show that this model is sound. There are no
+outlying hat values or DF Betas. In addition, there is no pattern to the plot of
+residuals to predictions (figure 3).
+
+## Quantified MPG difference between automatic and manual transmissions
+
+To answer this, we must interpret the coefficients of the linear regression. As
+mentioned before, we do not have sufficiently high confidence of transmission as
+a predictor of fuel efficiency on its own. However because of the strong
+influence of its interaction with the number of gears, we can say that for
+manual transmission vehicles, each additional gear reduces the fuel efficiency
+by about two miles per gallon. But in general, each additional gear increases
+the mileage by about five miles per gallon. So for automatic transmission
+vehicles, each additional gear increases mileage by about five miles per gallon.
+But for manual transmission vehicles, each gear only increases the mileage by
+three miles per gallon.
+
+## Appendix
+
+```{r, fig.cap='Figure 1: impact of categorical features on fuel efficiency', echo=FALSE}
+transmission <- as.factor( ifelse( mtcars$am == 0, 'automatic', 'manual' ) )
+par( mfrow=c( 2, 3 ), oma=c( 1, 1, 1, 1 ) )
+boxplot( mtcars$mpg ~ transmission, xlab='Transmission Type', ylab='MPG' )
+boxplot( mtcars$mpg ~ as.factor( mtcars$cyl ), xlab='Cylinders', ylab='MPG' )
+boxplot( mtcars$mpg ~ as.factor( ifelse( mtcars$vs == 0, 'straight', 'v' ) ),
+         xlab='Engine Configuration', ylab='MPG' )
+boxplot( mtcars$mpg ~ as.factor( mtcars$gear ), xlab='Number of Gears',
+         ylab='MPG' )
+boxplot( mtcars$mpg ~ as.factor( mtcars$carb ), xlab='Number of Carburetors',
+         ylab='MPG' )
+title( 'Figure 1: impact of categorical features on fuel efficiency',
+       outer=TRUE)
+```
+
+```{r, fig.cap='Figure 2: impact of continuous features on fuel efficiency', echo=FALSE}
+par( mfrow=c( 2, 2 ), oma=c( 1, 1, 1, 1 ) )
+plot( mtcars$mpg ~ mtcars$disp, xlab='Displacement', ylab='MPG' )
+plot( mtcars$mpg ~ mtcars$wt, xlab='Weight', ylab='MPG' )
+plot( mtcars$mpg ~ mtcars$drat, xlab='Rear Axle Ratio', ylab='MPG' )
+title( 'Figure 2: impact of continuous features on fuel efficiency',
+       outer=TRUE )
+```
+
+```{r, fig.cap='Figure 3: Residual Plots', echo=FALSE}
+par( mfrow=c( 2, 2 ), oma=c( 1, 1, 1, 1 ) )
+plot( hatvalues( fit ), xlab='Observation', ylab='Hat Value' )
+plot( dfbetas( fit )[ , 2 ], xlab='Observation', ylab='DF Beta' )
+plot( predict( fit ), resid( fit ), xlab='Predicted MPG', ylab='Residual' )
+plot( resid( fit ) / ( 1 - hatvalues( fit ) ), xlab='Observation',
+      ylab='PRESS Residual' )
+title( 'Figure 3: Residual Plots', outer=TRUE )
+```
